@@ -5,7 +5,8 @@
         are_neighbors/2,
         anti_neighborhood/3,
         get_QR/3,
-        is_a_hinged_hex/2
+        is_a_hinged_hex/2,
+        extend/3
     ]).
 
 %IMPORTAR MODULO LIST
@@ -96,4 +97,19 @@ are_neighbors(Hex1, Hex2):-
     axial_neighbors(Hex1, N),
     member(Hex2, N),!.
 
+% devuelve la lista de vecinos de los colocados en la colmena
+axial_neighbors_in_hive(Hex,Hive,L):-
+    axial_neighbors(Hex, Neighbors),
+    findall(X,(member(X,Neighbors),member(X,Hive)), L).
 
+% extend the path without cycles
+extend([Node|Path],NewPaths, Hive) :-
+    findall([NewNode,Node|Path],
+            (adj(Node,NewNode,Hive), 
+            \+ member(NewNode,Path)), % for avoiding loops
+            NewPaths).
+
+adj(H1,H2, L):-
+    member(H1, L),
+    member(H2, L),
+    are_neighbors(H1,H2).
