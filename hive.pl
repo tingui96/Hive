@@ -1,10 +1,14 @@
 :- module(hive, 
     [
         piece/6,
-        list_piece/6,
+        list_piece/7,
         init_piece/0,
-        set_piece/5,
-        player/5
+        set_piece/4,
+        posible_colocacion/3,
+        posibles_movimientos/4,
+        player/5,
+        todos_vecinos_vacios_colmena/1,
+        queen_bee_in_box/1
     ]).
 
 :-consult(cell), import(cell).
@@ -13,8 +17,10 @@
 :-dynamic piece/6, player/5, current_player/1, node/2.
 % piece(Type, Id, PlayerId, Hex=[Q,R], Placed, LVL)
 
+other_player(p1, p2).
+other_player(p2 ,p1).
 % list of pieces with filter
-list_piece(Type, Id, Player_id, Hex, Placed, Lvl, Insects):-
+list_piece(Type, Id, Player_id, Hex, Placed, Lvl, Pieces):-
     findall([Type, Id, Player_id, Hex, Placed, Lvl], piece(Type, Id, Player_id, Hex, Placed, Lvl), Pieces).
 
 /* Inicializacion de todas las piezas */
@@ -102,8 +108,6 @@ bfs_lvl([[U, _lvl]|Q], Visited, Lvl, AdjPred):-
 is_connected(Hex1,Hex2,Hive):-
     dfs_visit([[Hex1]],Hex2,_,_,Hive).
 
-
-
 % analiza si al quitar la pieza desconecta la colmena
 desconecta_colmena(Hex,Hive):-
     cell:axial_neighbors_in_hive(Hex,Hive,L),
@@ -163,6 +167,7 @@ init_game(Mode, Level):-
 
 movimientos_abeja_validos(Player_id,Hex,Valid_move):-
     current_player =:= Player_id,
+    hexagonos_ocupados(Hive),
     not(desconecta_colmena(Hex,Hive)),
     cell:axial_neighbors(Hex,Valid_move),
     findall(X,member(X,Valid_move),celda_vacia(X),Valid_move2).
@@ -172,38 +177,134 @@ celda_vacia(Hex):-
 
 movimientos_beetle_valido(Player_id,Hex,Valid_move):-
     current_player =:= Player_id,
+    hexagonos_ocupados(Hive),
     not(desconecta_colmena(Hex,Hive)),
     cell:axial_neighbors(Hex,Valid_move).
 
 movimiento_hormiga_valido(Player_id,Hex,Valid_move):-
     current_player =:= Player_id,
+    hexagonos_ocupados(Hive),
+    not(desconecta_colmena(Hex,Hive)),
     bfs_lvl([[Hex,0]],[],22,pred_hormiga),
     findall(U, (node(U, Lvl), Lvl > 0), Valid_move),
     retractall(node(_, _)).
 
-movimiento_araña_valido(Player_id,Hex,Valid_move):-
+movimiento_arana_valido(Player_id,Hex,Valid_move):-
     current_player =:= Player_id,
+    hexagonos_ocupados(Hive),
+    not(desconecta_colmena(Hex,Hive)),
     bfs_lvl([[Hex,0]],[],3,pred_hormiga),
     findall(U, (node(U, Lvl), Lvl =:= 3), Valid_move),
     retractall(node(_, _)).
 
+movimiento_saltamontes_valido(Player_id,Hex,Valid_move):-
+    current_player =:= Player_id,
+    hexagonos_ocupados(Hive),
+    not(desconecta_colmena(Hex,Hive)),
+    mov_dir_saltamonte(Hex,[0,-1],0,N),
+    mov_dir_saltamonte(Hex,[1,0],0,NE),
+    mov_dir_saltamonte(Hex,[1,1],0,SE),
+    mov_dir_saltamonte(Hex,[0,1],0,S),
+    mov_dir_saltamonte(Hex,[-1,-1],0,SO),
+    mov_dir_saltamonte(Hex,[-1,0],0,NO),
+    union([N,NE,SE,S,SO,NO] ,[], L),
+    list:delete_all_occurrences([], L ,L1),
+    list:delete_all_occurrences([_,1],L1,L2),
+    (L2 =\= [] ->
+    Valid_move is L2; fail),!.
+    
 
 pred_hormiga(Hex):-
     is_an_empty_hex(Hex),
-    is_adj(Hex).
+    is_adj(Hex),!.
 
 
 is_adj(Hex):-
-    axial_neighbors(Hex,Neighbors)
-    findall(X,member(X,Neighbors),member(X,pieza(_,_,_,X,true,_)),Found),
+    axial_neighbors(Hex,Neighbors),
+    hexagonos_ocupados(Hive),
+    findall(X,member(X,Neighbors),member(X,Hive),Found),
     Found=\=[],
     fail,!.
+
+mov_dir_saltamonte(Hex,Dir,N,Hex_final):-
+    (is_an_empty_hex(Hex) -> Hex_final is [Hex,N];  
+    N1 is N + 1, 
+    cell:axial_move(Hex,Dir,Hex2),    
+    mov_dir_saltamonte(Hex2,Dir,N1,Hex_final)).
+
+/*get_piece_mov(Type,Id,PlayerId,Mov):-
+    piece(Type,Id,PlayerId,_,false,_),
+    list_piece(_,_,PlayerId,_,true,1,Pieces),*/
+
     
 
+%pregunta si hay una pieza sobre esta
+is_blocked(Type,Id,PlayerId,Hex):-
+    piece(Type, Id, Pid, Hex, true, Lvl),
+    Lvl1 is Lvl+1,
+    piece(_, _, _, Hex, true, Lvl1),!.
 
 
+%el primer player juega en la 0,0
+posible_colocacion(PlayerId, Moves, Posibles_colocaciones):-
+    atom(PlayerId),
+    number(Moves),
+    var(Posibles_colocaciones),
+    PlayerId == p1,
+    Moves == 0,
+    Posibles_colocaciones = [[0, 0]],
+    !.
+
+%el segundo player juega en las casillas adyacente a la ficha del 1er jugador
+posible_colocacion(PlayerId, Moves, Posibles_colocaciones):-
+    atom(PlayerId),
+    number(Moves),
+    var(Posibles_colocaciones),
+    PlayerId == p2,
+    Moves == 0,
+    cell:axial_neighbors([0,0],Posibles_colocaciones),
+    !.
+
+posible_colocacion(PlayerId, Moves, Posibles_colocaciones):-
+    atom(PlayerId),
+    number(Moves),
+    var(Posibles_colocaciones),
+    list_piece(_,_,PlayerId,_,true,1,Colocaciones1),
+    other_player(PlayerId,El_otro),
+    todos_vecinos_vacios_colmena(Vacios),
+    findall(X,member(X,Vacios),puede_colocarse(El_otro,X),Posibles_colocaciones),!.
+
+    
+puede_colocarse(OtroId,Hex):-
+    axial_neighbors(Hex,Vecinos),
+    findall(X,member(X,Vecinos),piece(_,_,OtroId,X,true,_),Can),
+    Can=:=[],!.
 
 
+% Todos los vecinos vacios
+todos_vecinos_vacios_colmena(Void_neighbors):-
+    findall(VN, (piece(_, _, _, Hex, true,_), vecinos_vacios_hex(Hex, VN)), Void_neighbors_aux),
+    list:flatten_hex(Void_neighbors_aux, Void_neighbors_aux1),
+    setof(X, member(X, Void_neighbors_aux1), Void_neighbors),!.
 
+vecinos_vacios_hex(Hex, Void_neighbors):-
+    cell:axial_neighbors(Hex, Neighbors),
+    findall(H, piece(_, _, _, H, true,_), Hexagons),
+    findall(X, (member(X, Neighbors), not(member(X, Hexagons))), Void_neighbors),!.
 
+posibles_movimientos(Type,PlayerId,Id,Hex):-
+    queen_bee_in_box(PlayerId),
+    switch(
+        Type,[
+            queen_bee: movimientos_abeja_validos(PlayerId,Hex,Valid_move),
+            beetle: movimientos_beetle_valido(PlayerId,Hex,Valid_move),
+            grasshopper: mov_dir_saltamonte(PlayerId,Hex,Valid_move),
+            soldier_ant: movimiento_hormiga_valido(PlayerId,Hex,Valid_move),
+            spider: movimiento_arana_valido(PlayerId,Hex,Valid_move)
+        ]).
 
+switch(X, [Val:Goal|Cases]) :-
+    (X=Val ->
+        call(Goal);
+        switch(X, Cases)
+    ),!.

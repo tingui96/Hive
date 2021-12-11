@@ -3,9 +3,6 @@
         direction/3,
         axial_neighbors/2,
         are_neighbors/2,
-        anti_neighborhood/3,
-        get_QR/3,
-        is_a_hinged_hex/2,
         extend/3
     ]).
 

@@ -16,6 +16,12 @@
 element_at(X,[X|_],1).
 element_at(X,[_|L],K) :- element_at(X,L,K1), K is K1 + 1.
 
+flatten_hex([],[]).
+flatten_hex([X|Y],R):- 
+    element_hex(X,V),
+    flatten_hex(Y,L),
+    concat(V,L,R).
+
 % indexOf(X,L,I)
 indexOf(X, [X|_], 1):-!.
 indexOf(X, [_|R], I):- indexOf(X, R, I1), !, I is I1+1.
@@ -43,3 +49,17 @@ delete_all_occurrences(X,[Y|R],[Y|R1]):-
 last_element(X,[X|[]]):-!.
 last_element(X,[H|T]):-
     last_element(X,T).
+
+% element_hex(Hex, L)
+element_hex(X, [X]):-
+    isHex(X),!.
+element_hex(X, [X]):-
+    not(isList(X)).
+element_hex(X, V):-
+    isList(X),
+    flatten_hex(X,V).
+
+% isHex(Hex)
+isHex([Q, R]):-
+    number(Q),
+    number(R).
